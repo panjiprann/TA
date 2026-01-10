@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndoRates - Live Kurs API</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        /* --- CSS DARK MODE KEKINIAN --- */
+        :root {
+            --bg-main: #0f172a; --bg-card: #1e293b; --text-primary: #e2e8f0;
+            --accent: #38bdf8; --glow: 0 0 15px rgba(56, 189, 248, 0.3);
+        }
+        body { background-color: var(--bg-main); color: var(--text-primary); font-family: 'Inter', sans-serif; }
+        
+        .hero { background: linear-gradient(to bottom, #0f172a, #1e293b); padding: 60px 0; border-bottom: 1px solid rgba(56,189,248,0.1); }
+        .hero h1 { font-weight: 800; background: linear-gradient(135deg, #fff 30%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block; }
+        
+        .btn-hero { border: 1px solid var(--accent); color: var(--accent); border-radius: 30px; padding: 8px 20px; text-decoration: none; transition: 0.3s; }
+        .btn-hero:hover { background-color: var(--accent); color: var(--bg-main); box-shadow: var(--glow); }
+        
+        .card { background-color: var(--bg-card); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); }
+        .form-control, .form-select { background-color: var(--bg-main) !important; border: 1px solid #334155; color: var(--text-primary) !important; border-radius: 10px; padding: 12px; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent), #0284c7); border: none; border-radius: 10px; padding: 12px; font-weight: 600; width: 100%; }
+        .btn-primary:hover { box-shadow: var(--glow); }
+
+        .list-group-item { background: transparent; border-color: rgba(255,255,255,0.05); color: var(--text-primary); padding: 12px; }
+        .text-accent { color: var(--accent); font-weight: bold; }
+        
+        /* Agar list kurs bisa discroll jika kepanjangan */
+        .scroll-box { max-height: 400px; overflow-y: auto; }
+        
+        /* Scrollbar cantik */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="hero text-center mb-4">
+        <div class="container">
+            <h1>IndoRates API <span style="font-size: 0.5em">🚀</span></h1>
+            <p class="text-muted mb-3">Live Currency Converter & Open API Platform</p>
+            <a href="/api-docs" class="btn-hero">📄 Dokumentasi Swagger</a>
+        </div>
+    </div>
+
+    <div class="container pb-5">
+        <div class="row g-4">
+            
+            <div class="col-md-12">
+                <div class="card p-3">
+                    <label class="fw-bold mb-2 text-muted small">🔑 API KEY AKSES</label>
+                    <div class="input-group">
+                        <input type="text" id="apiKeyInput" class="form-control" value="indorates_free_123">
+                        <button class="btn btn-outline-light" style="width: auto;" onclick="alert('Key tersimpan!')">Simpan</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="m-0">📊 Live Market</h4>
+                        <button onclick="getRates()" class="btn btn-sm btn-outline-info" style="border-radius: 20px;">🔄 Refresh</button>
+                    </div>
+                    <div class="scroll-box">
+                        <ul id="ratesList" class="list-group list-group-flush">
+                            <li class="list-group-item text-center text-muted p-4" style="border: 2px dashed #334155; border-radius: 10px;">
+                                Klik refresh untuk ambil data live.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card p-4 h-100">
+                    <h4 class="mb-3">Convert here</h4>
+                    
+                    <div class="mb-3">
+                        <label class="text-muted small">Mata Uang Asing</label>
+                        <select id="currencySelect" class="form-select mb-3">
+                            <option value="USD" selected>🇺🇸 USD - Dollar Amerika</option>
+                            <option value="SGD">🇸🇬 SGD - Dollar Singapura</option>
+                            <option value="MYR">🇲🇾 MYR - Ringgit Malaysia</option>
+                            <option value="JPY">🇯🇵 JPY - Yen Jepang</option>
+                            <option value="EUR">🇪🇺 EUR - Euro</option>
+                            <option value="GBP">🇬🇧 GBP - Poundsterling Inggris</option>
+                            <option value="SAR">🇸🇦 SAR - Riyal Arab Saudi</option>
+                            <option value="AUD">🇦🇺 AUD - Dollar Australia</option>
+                            <option value="CNY">🇨🇳 CNY - Yuan China</option>
+                            <option value="KRW">🇰🇷 KRW - Won Korea</option>
+                            <option value="THB">🇹🇭 THB - Baht Thailand</option>
+                            <option value="HKD">🇭🇰 HKD - Dollar Hong Kong</option>
+                        </select>
+
+                        <label class="text-muted small">Nominal Uang</label>
+                        <input type="number" id="amountInput" class="form-control mb-4" placeholder="Contoh: 100">
+                        
+                        <button onclick="convertCurrency()" class="btn btn-primary">Hitung Konversi ⚡</button>
+                    </div>
+                    
+                    <div id="resultBox" class="alert alert-info mt-3 d-none p-3 text-center" style="background: rgba(56,189,248,0.1); border: 1px solid var(--accent); color: var(--accent);">
+                        <small>Estimasi Rupiah:</small><br>
+                        <b id="resultText" style="font-size: 1.8rem;">Rp 0</b>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        async function getRates() {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const list = document.getElementById('ratesList');
+            list.innerHTML = '<li class="list-group-item text-center text-muted">⏳ Mengambil data live...</li>';
+
+            try {
+                const res = await fetch('/api/rates', { headers: { 'x-api-key': apiKey } });
+                const json = await res.json();
+                
+                if(res.ok) {
+                    list.innerHTML = '';
+                    // Loop data dari server dan tampilkan
+                    for (const [key, val] of Object.entries(json.data.rates)) {
+                        list.innerHTML += `<li class="list-group-item d-flex justify-content-between">
+                            <span class="text-accent">${key}</span>
+                            <span>Rp ${val.toLocaleString('id-ID')}</span>
+                        </li>`;
+                    }
+                } else {
+                    list.innerHTML = `<li class="list-group-item text-danger text-center">${json.error}</li>`;
+                }
+            } catch (err) {
+                list.innerHTML = `<li class="list-group-item text-danger text-center">Gagal koneksi. Cek Terminal.</li>`;
+            }
+        }
+
+        async function convertCurrency() {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const currency = document.getElementById('currencySelect').value;
+            const amount = document.getElementById('amountInput').value;
+            const box = document.getElementById('resultBox');
+
+            if(!amount) { alert("Masukkan nominal uang dulu!"); return; }
+            
+            box.classList.remove('d-none');
+            box.innerHTML = "⏳ Menghitung...";
+
+            try {
+                const res = await fetch('/api/convert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                    body: JSON.stringify({ currency, amount })
+                });
+                const json = await res.json();
+
+                if(res.ok) {
+                    box.innerHTML = `<small>Estimasi Rupiah:</small><br><b style="font-size: 1.8rem;">Rp ${json.result_idr.toLocaleString('id-ID')}</b>`;
+                } else {
+                    box.innerHTML = `<span class="text-danger">${json.error}</span>`;
+                }
+            } catch (err) {
+                box.innerHTML = `<span class="text-danger">Koneksi Terputus!</span>`;
+            }
+        }
+    </script>
+</body>
+</html>

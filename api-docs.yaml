@@ -1,0 +1,48 @@
+openapi: 3.0.0
+info:
+  title: IndoRates Open API
+  description: API sederhana untuk melihat kurs rupiah dan konversi mata uang.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Server Lokal
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: query
+      name: api_key
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /api/rates:
+    get:
+      summary: Lihat Kurs Hari Ini
+      description: Mengambil data kurs Rupiah terhadap mata uang asing.
+      responses:
+        200:
+          description: Berhasil mengambil data
+  
+  /api/convert:
+    post:
+      summary: Hitung Konversi Uang
+      description: Menghitung nilai tukar dari mata uang asing ke Rupiah.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currency:
+                  type: string
+                  example: USD
+                amount:
+                  type: integer
+                  example: 10
+      responses:
+        200:
+          description: Berhasil menghitung

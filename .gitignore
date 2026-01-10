@@ -1,0 +1,9 @@
+# --- Dependency (WAJIB DI-IGNORE) ---
+node_modules/
+
+# --- System Files (Sampah Laptop) ---
+.DS_Store
+Thumbs.db
+
+# --- Log Files (Opsional) ---
+npm-debug.log
