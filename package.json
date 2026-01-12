@@ -10,8 +10,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@prisma/client": "^5.10.2",
     "cors": "^2.8.5",
     "express": "^5.2.1",
+    "prisma": "^5.10.2",
     "swagger-ui-express": "^5.0.1",
     "yamljs": "^0.3.0"
   }

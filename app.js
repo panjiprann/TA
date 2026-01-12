@@ -1,10 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-// Kita butuh rates.json sebagai DATA CADANGAN awal (jika internet mati pas start)
-let ratesData = require('./rates.json'); 
-const usersData = require('./users.json');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-// --- LIBRARY SWAGGER ---
+// --- DATA KURS (Cache Lokal) ---
+// Pastikan file rates.json ada di folder project (isinya {} kosong tidak masalah awalnya)
+let ratesData = require('./rates.json'); 
+
+// --- SWAGGER ---
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const swaggerDocument = YAML.load('./api-docs.yaml');
@@ -14,111 +17,159 @@ const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
-// Folder 'public' berisi file frontend (html/css)
 app.use(express.static('public')); 
-// Route Dokumentasi
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// --- FUNGSI UPDATE KURS LIVE (REAL-TIME) ---
+// --- SERVICE: UPDATE KURS REALTIME (20+ Mata Uang) ---
 async function updateKursRealTime() {
     try {
-        console.log("⏳ [SYSTEM] Sedang mengambil data kurs LIVE dari internet...");
-        
-        // Mengambil data dari API Publik (Gratis)
         const response = await fetch('https://open.er-api.com/v6/latest/IDR');
         const json = await response.json();
-
+        
         if (json.result === "success") {
             ratesData.date = json.time_last_update_utc;
             
-            // LOGIKA: API memberi data "1 IDR dapet berapa USD".
-            // Kita balik rumusnya jadi "1 USD harganya berapa Rupiah" (1 / rate).
-            ratesData.rates = {
-                "USD": Math.round(1 / json.rates.USD), // Amerika
-                "SGD": Math.round(1 / json.rates.SGD), // Singapura
-                "MYR": Math.round(1 / json.rates.MYR), // Malaysia
-                "JPY": Math.round(1 / json.rates.JPY), // Jepang
-                "EUR": Math.round(1 / json.rates.EUR), // Eropa
-                "GBP": Math.round(1 / json.rates.GBP), // Inggris
-                "SAR": Math.round(1 / json.rates.SAR), // Arab Saudi
-                "AUD": Math.round(1 / json.rates.AUD), // Australia
-                "CNY": Math.round(1 / json.rates.CNY), // China
-                "KRW": Math.round(1 / json.rates.KRW), // Korea
-                "THB": Math.round(1 / json.rates.THB), // Thailand
-                "HKD": Math.round(1 / json.rates.HKD)  // Hong Kong
-            };
+            // Daftar Mata Uang Populer yang ingin ditampilkan
+            const currencies = [
+                "USD", "SGD", "MYR", "JPY", "EUR", "SAR", "CNY", "KRW", "AUD", 
+                "GBP", "THB", "HKD", "TWD", "CAD", "NZD", "INR", "PHP", "VND", 
+                "AED", "TRY", "CHF"
+            ];
 
-            console.log("✅ [SYSTEM] SUKSES! Data kurs berhasil di-update.");
+            let newRates = {};
+            // Membalik logika: 1 Asing = Berapa Rupiah
+            currencies.forEach(code => {
+                if(json.rates[code]) {
+                    newRates[code] = Math.round(1 / json.rates[code]);
+                }
+            });
+
+            ratesData.rates = newRates;
+            console.log("✅ Data Kurs Diperbarui (20+ Mata Uang)");
         }
-    } catch (error) {
-        console.log("⚠️ [SYSTEM] Gagal ambil data live (Menggunakan data lokal rates.json):", error.message);
+    } catch (e) { 
+        console.log("⚠️ Gagal update kurs (Menggunakan cache lama)"); 
     }
 }
-
-// 1. Update saat server pertama kali nyala
+// Update saat start, lalu ulangi setiap 1 jam
 updateKursRealTime();
+setInterval(updateKursRealTime, 3600000); 
 
-// 2. Update otomatis setiap 1 jam (3.600.000 milidetik)
-setInterval(updateKursRealTime, 3600000);
+// ==========================================
+// 1. ENDPOINT AUTH (LOGIN & REGISTER)
+// ==========================================
 
+app.post('/api/auth/register', async (req, res) => {
+    const { username, password } = req.body;
+    const randomKey = 'key_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
 
-// --- MIDDLEWARE (SATPAM API KEY) ---
-const cekApiKey = (req, res, next) => {
-    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    try {
+        const newUser = await prisma.user.create({
+            data: { username, password, role: 'user', api_key: randomKey }
+        });
+        res.json({ status: "success", message: "Register Berhasil", data: newUser });
+    } catch (error) {
+        res.status(400).json({ error: "Username sudah digunakan" });
+    }
+});
 
-    if (!apiKey) return res.status(401).json({ error: "Akses Ditolak! Harap sertakan API Key." });
-    
-    const user = usersData.find(u => u.api_key === apiKey);
-    if (!user) return res.status(403).json({ error: "API Key tidak valid!" });
+app.post('/api/auth/login', async (req, res) => {
+    const { username, password } = req.body;
+    const user = await prisma.user.findUnique({ where: { username } });
 
-    req.user = user;
-    next();
-};
+    if (!user || user.password !== password) {
+        return res.status(401).json({ error: "Username atau Password salah" });
+    }
 
-
-// --- ENDPOINT API ---
-
-// GET: Lihat Semua Data
-app.get('/api/rates', cekApiKey, (req, res) => {
-    console.log(`[LOG] User ${req.user.username} melihat daftar kurs.`);
     res.json({
         status: "success",
-        source: "Live Market Data",
-        last_update: ratesData.date,
-        data: ratesData
+        username: user.username,
+        role: user.role,
+        api_key: user.api_key
     });
 });
 
-// POST: Hitung Konversi (Anti-Crash)
+// ==========================================
+// 2. MIDDLEWARE (KEAMANAN)
+// ==========================================
+
+const cekApiKey = async (req, res, next) => {
+    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    if (!apiKey) return res.status(401).json({ error: "API Key tidak ditemukan" });
+
+    const user = await prisma.user.findUnique({ where: { api_key: apiKey } });
+    if (!user) return res.status(403).json({ error: "API Key tidak valid" });
+
+    req.user = user; 
+    next();
+};
+
+const cekAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: "Akses Ditolak: Khusus Admin" });
+    next();
+};
+
+// ==========================================
+// 3. FITUR UTAMA (READ & CREATE ACTION)
+// ==========================================
+
+// READ DATA (GET)
+app.get('/api/rates', cekApiKey, (req, res) => {
+    res.json({ status: "success", data: ratesData });
+});
+
+// ACTION (POST)
 app.post('/api/convert', cekApiKey, (req, res) => {
+    const { currency, amount } = req.body;
+    const rate = ratesData.rates[currency];
+    
+    if (!rate) return res.status(400).json({ error: "Mata uang tidak ditemukan" });
+    
+    res.json({
+        from: currency,
+        to: "IDR",
+        rate: rate,
+        amount: parseFloat(amount),
+        result: parseFloat(amount) * rate
+    });
+});
+
+// ==========================================
+// 4. ADMIN PANEL (READ, DELETE, UPDATE)
+// ==========================================
+
+// READ ALL USERS (GET)
+app.get('/api/admin/users', cekApiKey, cekAdmin, async (req, res) => {
+    const allUsers = await prisma.user.findMany({ orderBy: { id: 'asc' } });
+    res.json({ status: "success", users: allUsers });
+});
+
+// DELETE USER (DELETE)
+app.delete('/api/admin/users/:id', cekApiKey, cekAdmin, async (req, res) => {
+    const idUser = parseInt(req.params.id);
+    if (req.user.id === idUser) return res.status(400).json({ error: "Tidak bisa menghapus akun sendiri" });
+
     try {
-        const { currency, amount } = req.body;
-        
-        // Validasi
-        if (!currency || !amount) return res.status(400).json({ error: "Mohon masukkan currency dan amount" });
-        
-        // Cek Ketersediaan Mata Uang
-        const rate = ratesData.rates[currency];
-        if (!rate) return res.status(400).json({ error: `Mata uang ${currency} tidak tersedia` });
-
-        // Hitung
-        const totalIDR = Number(amount) * rate;
-
-        res.json({
-            from: currency,
-            to: "IDR",
-            rate_used: rate,
-            amount_input: Number(amount),
-            result_idr: totalIDR
-        });
+        await prisma.user.delete({ where: { id: idUser } });
+        res.json({ status: "success", message: "User berhasil dihapus" });
     } catch (error) {
-        console.error("Error:", error.message);
-        res.status(500).json({ error: "Internal Server Error" });
+        res.status(500).json({ error: "Gagal menghapus user" });
+    }
+});
+
+// UPDATE USER KEY (PUT) - Memenuhi Syarat CRUD Update
+app.put('/api/admin/users/:id/reset-key', cekApiKey, cekAdmin, async (req, res) => {
+    const idUser = parseInt(req.params.id);
+    const newKey = 'key_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+    try {
+        await prisma.user.update({ where: { id: idUser }, data: { api_key: newKey } });
+        res.json({ status: "success", message: "Key diperbarui (PUT)", new_key: newKey });
+    } catch (error) {
+        res.status(500).json({ error: "Gagal update key" });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`--------------------------------------------------`);
-    console.log(`✅ Server berjalan di http://localhost:${PORT}`);
-    console.log(`--------------------------------------------------`);
+    console.log(`✅ Server IndoRates Pro berjalan di http://localhost:${PORT}`);
 });

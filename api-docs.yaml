@@ -1,48 +1,96 @@
 openapi: 3.0.0
 info:
-  title: IndoRates Open API
-  description: API sederhana untuk melihat kurs rupiah dan konversi mata uang.
-  version: 1.0.0
+  title: IndoRates Pro API
+  description: Dokumentasi API dengan CRUD Lengkap (MySQL + Prisma).
+  version: 2.0.0
 servers:
   - url: http://localhost:3000
-    description: Server Lokal
-
 components:
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
-      in: query
-      name: api_key
-
+      in: header
+      name: x-api-key
 security:
   - ApiKeyAuth: []
 
 paths:
-  /api/rates:
-    get:
-      summary: Lihat Kurs Hari Ini
-      description: Mengambil data kurs Rupiah terhadap mata uang asing.
-      responses:
-        200:
-          description: Berhasil mengambil data
-  
-  /api/convert:
+  # --- AUTHENTICATION ---
+  /api/auth/register:
     post:
-      summary: Hitung Konversi Uang
-      description: Menghitung nilai tukar dari mata uang asing ke Rupiah.
+      summary: Daftar Akun Baru (Create)
+      security: []
+      tags: [Authentication]
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               type: object
               properties:
-                currency:
-                  type: string
-                  example: USD
-                amount:
-                  type: integer
-                  example: 10
+                username: {type: string}
+                password: {type: string}
       responses:
-        200:
-          description: Berhasil menghitung
+        200: {description: Berhasil daftar}
+
+  /api/auth/login:
+    post:
+      summary: Login User
+      security: []
+      tags: [Authentication]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: {type: string}
+                password: {type: string}
+      responses:
+        200: {description: Mengembalikan API Key}
+
+  # --- FEATURES ---
+  /api/rates:
+    get:
+      summary: Baca Data Kurs (Read)
+      tags: [Features]
+      responses:
+        200: {description: List kurs terbaru}
+
+  /api/convert:
+    post:
+      summary: Kalkulator Konversi
+      tags: [Features]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currency: {type: string}
+                amount: {type: number}
+      responses:
+        200: {description: Hasil hitungan}
+
+  # --- ADMIN CRUD ---
+  /api/admin/users:
+    get:
+      summary: Lihat Semua User (Read)
+      tags: [Admin Panel]
+      responses:
+        200: {description: List user}
+
+  /api/admin/users/{id}:
+    delete:
+      summary: Hapus User (Delete)
+      tags: [Admin Panel]
+      parameters: [{in: path, name: id, schema: {type: integer}, required: true}]
+      responses: {200: {description: Terhapus}}
+
+  /api/admin/users/{id}/reset-key:
+    put:
+      summary: Update API Key User (Update)
+      description: Endpoint ini menggunakan method PUT untuk memenuhi syarat CRUD Update.
+      tags: [Admin Panel]
+      parameters: [{in: path, name: id, schema: {type: integer}, required: true}]
+      responses:
+        200: {description: Key berhasil diupdate}
